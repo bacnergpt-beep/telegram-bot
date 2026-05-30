@@ -17,14 +17,11 @@ dias_map = {
 }
 
 async def main():
-    print("🔥 AUTO PRO CORRIENDO")
+    print("🔥 AUTO PRO ACTIVO")
 
     while True:
         try:
             now = datetime.now(tz)
-
-            dia_en = now.strftime("%A").lower()
-            dia_actual = dias_map.get(dia_en, dia_en)
 
             with open(CONFIG_PATH, encoding="utf-8") as f:
                 data = json.load(f)
@@ -34,61 +31,62 @@ async def main():
                 await asyncio.sleep(2)
                 continue
 
+            dia_en = now.strftime("%A").lower()
+            dia_actual = dias_map.get(dia_en, dia_en)
+
             for evento in data.get("eventos", []):
 
                 if not evento.get("activo", True):
                     continue
 
-                # EVENTO NORMAL
-                if evento.get("fecha"):
-                    dt_evento = datetime.strptime(
-                        f"{evento['fecha']} {evento['hora']}",
-                        "%Y-%m-%d %H:%M"
-                    ).replace(tzinfo=tz)
+                try:
+                    if evento.get("fecha"):
+                        dt_evento = datetime.strptime(
+                            f"{evento['fecha']} {evento['hora']}",
+                            "%Y-%m-%d %H:%M"
+                        ).replace(tzinfo=tz)
 
-                    clave = f"{evento['fecha']}_{evento['hora']}"
+                        clave = f"{evento['fecha']}_{evento['hora']}"
 
-                # EVENTO REPETITIVO
-                elif evento.get("tipo") == "repetitivo":
+                    elif evento.get("tipo") == "repetitivo":
 
-                    if evento["dia"] != dia_actual:
+                        if evento["dia"] != dia_actual:
+                            continue
+
+                        dt_evento = datetime.strptime(
+                            evento["hora"],
+                            "%H:%M"
+                        ).replace(
+                            year=now.year,
+                            month=now.month,
+                            day=now.day,
+                            tzinfo=tz
+                        )
+
+                        clave = f"{evento['dia']}_{evento['hora']}_{now.strftime('%Y-%m-%d')}"
+
+                    else:
                         continue
 
-                    dt_evento = datetime.strptime(
-                        evento["hora"],
-                        "%H:%M"
-                    ).replace(
-                        year=now.year,
-                        month=now.month,
-                        day=now.day,
-                        tzinfo=tz
-                    )
+                    diferencia = abs((now - dt_evento).total_seconds())
 
-                    clave = f"{evento['dia']}_{evento['hora']}_{now.strftime('%Y-%m-%d')}"
+                    if diferencia <= 60 and clave not in ejecutados:
 
-                else:
-                    continue
-
-                diferencia = abs((now - dt_evento).total_seconds())
-
-                if diferencia <= 60 and clave not in ejecutados:
-
-                    for canal in data.get("canales", []):
-                        try:
+                        for canal in data.get("canales", []):
                             await bot.copy_message(
                                 chat_id=canal,
                                 from_chat_id=contenido["chat_id"],
                                 message_id=contenido["message_id"]
                             )
-                            print("✅ enviado a", canal)
+                            print("✅ enviado:", canal)
 
-                        except Exception as e:
-                            print("❌ error:", e)
+                        ejecutados.add(clave)
 
-                    ejecutados.add(clave)
+                except Exception as e:
+                    print("evento error:", e)
 
         except Exception as e:
-            print("❌ ERROR:", e)
+            print("ERROR GLOBAL:", e)
 
         await asyncio.sleep(2)
 
