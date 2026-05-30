@@ -108,7 +108,6 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif context.user_data.get("modo") == "multi_mensaje":
 
-            # confirmar guardado
             if t == "guardar":
 
                 mensajes = context.user_data.get("temp_mensajes", [])
@@ -127,7 +126,6 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
 
-            # detectar tipo
             tipo = "texto"
 
             if update.message.photo:
@@ -215,10 +213,15 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Activar: on:1"
             )
 
-        # AGREGAR HORARIOS
-        elif re.match(r".+\s+.+", t):
+        # -------- FIX HORARIOS --------
+        elif re.match(r"^[a-z, ]+\s+\d", t):
 
             match = re.match(r"(.+?)\s+(.+)$", t)
+
+            if not match:
+                await update.message.reply_text("❌ Formato inválido")
+                return
+
             dias_txt = match.group(1)
             horas_txt = match.group(2)
 
