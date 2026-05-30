@@ -17,7 +17,7 @@ dias_map = {
 }
 
 async def main():
-    print("🔥 AUTO PRO")
+    print("🔥 AUTO FUNCIONANDO")
 
     while True:
         try:
