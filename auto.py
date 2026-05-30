@@ -9,13 +9,6 @@ CONFIG_PATH = "config_data.json"
 bot = Bot(token=TOKEN)
 tz = pytz.timezone("America/Lima")
 
-ejecutados = set()
-
-dias_map = {
-    "monday":"lunes","tuesday":"martes","wednesday":"miercoles",
-    "thursday":"jueves","friday":"viernes","saturday":"sabado","sunday":"domingo"
-}
-
 async def main():
     print("🔥 AUTO FUNCIONANDO")
 
@@ -26,10 +19,15 @@ async def main():
             with open(CONFIG_PATH, encoding="utf-8") as f:
                 data = json.load(f)
 
-            contenido = data.get("contenido")
-            if not contenido:
+            contenidos = data.get("contenido", [])
+            if not contenidos:
                 await asyncio.sleep(2)
                 continue
+
+            dias_map = {
+                "monday":"lunes","tuesday":"martes","wednesday":"miercoles",
+                "thursday":"jueves","friday":"viernes","saturday":"sabado","sunday":"domingo"
+            }
 
             dia_actual = dias_map[now.strftime("%A").lower()]
 
@@ -52,12 +50,13 @@ async def main():
 
                     if abs((now - dt).total_seconds()) <= 60:
 
-                        for canal in data.get("canales", []):
-                            await bot.copy_message(
-                                chat_id=canal,
-                                from_chat_id=contenido["chat_id"],
-                                message_id=contenido["message_id"]
-                            )
+                        for contenido in contenidos:
+                            for canal in data.get("canales", []):
+                                await bot.copy_message(
+                                    chat_id=canal,
+                                    from_chat_id=contenido["chat_id"],
+                                    message_id=contenido["message_id"]
+                                )
 
                         print("✅ enviado")
 
