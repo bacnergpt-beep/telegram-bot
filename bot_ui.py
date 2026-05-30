@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 import json, asyncio, unicodedata, re, difflib
 from datetime import datetime
 
-TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
+TOKEN = "TU_TOKEN"
 CONFIG_PATH = "config_data.json"
 
 data = {"programacion": [], "canales": [], "contenido": {}}
@@ -28,7 +28,7 @@ def cargar():
     except:
         guardar()
 
-# -------- parse hora --------
+# -------- hora --------
 def parse_hora(h):
     h = h.lower().replace(" ", "")
     try:
@@ -41,7 +41,7 @@ def parse_hora(h):
     except:
         return None
 
-# -------- dias inteligentes --------
+# -------- días inteligentes --------
 dias_validos = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"]
 
 def corregir_dia(d):
@@ -60,7 +60,7 @@ def menu():
 # -------- start --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cargar()
-    await update.message.reply_text("🚀 BOT PRO ACTIVO", reply_markup=menu())
+    await update.message.reply_text("🚀 BOT FUNCIONANDO", reply_markup=menu())
 
 # -------- lógica --------
 async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -80,8 +80,7 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.edit_text(
                 f"📊 PANEL\n\n"
                 f"📢 Canales: {len(data['canales'])}\n"
-                f"⏰ Horarios: {len(data['programacion'])}\n"
-                f"⚡ Estado: ACTIVO"
+                f"⏰ Horarios: {len(data['programacion'])}"
             )
 
         # CANALES
@@ -109,27 +108,25 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["modo"] = False
             await msg.edit_text("✅ Mensaje guardado")
 
-        # HORARIOS (GUÍA)
+        # HORARIOS
         elif "horarios" in t:
 
             if not data["programacion"]:
                 await msg.edit_text(
-                    "⏰ CONFIGURAR HORARIOS\n\n"
+                    "⏰ CONFIGURAR\n\n"
                     "Ejemplos:\n"
                     "lunes 5pm\n"
                     "lunes,viernes 6pm\n"
-                    "lunes 9am,2pm,8pm\n"
-                    "domingo 17:20\n\n"
-                    "✍️ Escribe uno para empezar"
+                    "lunes 9am,2pm,8pm"
                 )
             else:
                 txt = "⏰ HORARIOS:\n\n"
                 for i, p in enumerate(data["programacion"], 1):
                     estado = "🟢" if p.get("activo", True) else "🔴"
                     txt += f"{i}. {', '.join(p['dias'])}\n"
-                    txt += f"   🕒 {', '.join(p['horas'])} {estado}\n\n"
+                    txt += f"🕒 {', '.join(p['horas'])} {estado}\n\n"
 
-                txt += "🗑 del:1\n⏸ off:1\n▶️ on:1"
+                txt += "🗑 del:1 | ⏸ off:1 | ▶️ on:1"
                 await msg.edit_text(txt)
 
         # ACTIVOS
@@ -169,8 +166,8 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # PANEL COMPLETO
         elif t.startswith(".panel"):
             await msg.edit_text(
-                "📘 PANEL COMPLETO\n\n"
-                "Agregar:\nlunes 5pm\n"
+                "📘 PANEL\n\n"
+                "Agregar: lunes 5pm\n"
                 "Ver: horarios\n"
                 "Activos: activos\n"
                 "Eliminar: del:1\n"
@@ -178,7 +175,7 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Activar: on:1"
             )
 
-        # AGREGAR HORARIOS (PRO)
+        # AGREGAR HORARIOS
         elif re.match(r".+\s+.+", t):
 
             match = re.match(r"(.+?)\s+(.+)$", t)
@@ -211,7 +208,7 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             })
 
             guardar()
-            await msg.edit_text("✅ Programado correctamente")
+            await msg.edit_text("✅ Programado")
 
         elif "activar" in t:
             await msg.edit_text("🚀 AUTO ACTIVO")
@@ -227,7 +224,7 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.ALL, texto))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, texto))
 
-print("🔥 BOT FINAL ESTABLE")
+print("🔥 BOT FUNCIONANDO CORRECTO")
 app.run_polling()
