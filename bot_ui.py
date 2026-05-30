@@ -1,7 +1,6 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import json, asyncio, unicodedata
-from datetime import datetime
 
 TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
 OWNER_ID = 7752782654
@@ -11,7 +10,7 @@ usuarios_autorizados = [OWNER_ID]
 
 data = {
     "canales": [],
-    "eventos": [],
+    "programacion": [],
     "contenido": {}
 }
 
@@ -32,46 +31,30 @@ def cargar():
         with open(CONFIG_PATH, encoding="utf-8") as f:
             data = json.load(f)
     except:
-        data = {"canales": [], "eventos": [], "contenido": {}}
         guardar()
 
 def menu():
     return ReplyKeyboardMarkup([
         ["📊 Panel", "📢 Canales"],
-        ["📩 Mensaje", "📅 Eventos"],
+        ["📩 Mensaje", "⏰ Horarios"],
         ["🚀 Activar"]
     ], resize_keyboard=True)
-
-def parse_evento(texto):
-    try:
-        texto = texto.strip()
-        f, h = texto.split()
-        y,m,d = map(int, f.split("-"))
-        hh,mm = map(int, h.split(":"))
-        return datetime(y,m,d,hh,mm)
-    except:
-        return None
 
 # -------- start --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in usuarios_autorizados:
-        await update.message.reply_text("⛔ Acceso denegado")
         return
     cargar()
-    await update.message.reply_text("🚀 BOT PRO ACTIVO", reply_markup=menu())
+    await update.message.reply_text("🚀 BOT ACTIVO", reply_markup=menu())
 
 # -------- lógica --------
 async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     cargar()
 
-    if "eventos" not in data:
-        data["eventos"] = []
-
-    user_id = update.effective_user.id
-
-    if user_id not in usuarios_autorizados:
-        return
+    data.setdefault("programacion", [])
+    data.setdefault("canales", [])
+    data.setdefault("contenido", {})
 
     raw = update.message.text or ""
     t = limpiar(raw)
@@ -83,35 +66,30 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
 
-        # 🎨 PANEL PRO
-        if "panel" in t or "dashboard" in t:
-            total = len(data["eventos"])
-            activos = len([e for e in data["eventos"] if e.get("activo", True)])
-
+        # PANEL
+        if "panel" in t:
             await msg.edit_text(
-                f"📊 PANEL PRO\n\n"
-                f"🔵 Canales: {len(data['canales'])}\n"
-                f"🟡 Eventos: {total}\n"
-                f"🟢 Activos: {activos}\n"
-                f"🔴 Inactivos: {total - activos}\n\n"
-                f"⚡ Estado: OPERATIVO"
+                f"📊 PANEL\n\n"
+                f"📢 Canales: {len(data['canales'])}\n"
+                f"⏰ Horarios: {len(data['programacion'])}\n"
+                f"⚡ Estado: ACTIVO"
             )
 
-        # 📢 CANALES
+        # CANALES
         elif "canales" in t:
-            await msg.edit_text("📢 Envía ID canal\nEj: -100123456")
+            await msg.edit_text("Envía ID canal\nEj: -100123456")
 
         elif raw.strip().startswith("-100"):
             cid = int(raw.strip())
             if cid not in data["canales"]:
                 data["canales"].append(cid)
                 guardar()
-            await msg.edit_text("🟢 Canal agregado")
+            await msg.edit_text("✅ Canal agregado")
 
-        # 📩 MENSAJE
+        # MENSAJE
         elif "mensaje" in t:
             context.user_data["modo"] = True
-            await msg.edit_text("📩 Envía mensaje")
+            await msg.edit_text("Envía mensaje")
 
         elif context.user_data.get("modo"):
             data["contenido"] = {
@@ -120,80 +98,64 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             guardar()
             context.user_data["modo"] = False
-            await msg.edit_text("🟢 Mensaje guardado")
+            await msg.edit_text("✅ Mensaje guardado")
 
-        # 📅 EVENTOS
-        elif "eventos" in t:
-            if not data["eventos"]:
-                await msg.edit_text("⚫ No hay eventos")
+        # VER HORARIOS
+        elif "horarios" in t:
+            prog = data["programacion"]
+
+            if not prog:
+                await msg.edit_text("❌ No hay horarios")
             else:
-                txt = "📅 EVENTOS\n\n"
-                for i, e in enumerate(data["eventos"], 1):
-                    estado = "🟢" if e.get("activo", True) else "🔴"
+                txt = "⏰ HORARIOS:\n\n"
+                for i, p in enumerate(prog, 1):
+                    txt += f"{i}. {','.join(p['dias'])} {p['hora']}\n"
 
-                    if e.get("tipo") == "repetitivo":
-                        txt += f"{i}. 🔁 {e['dia']} {e['hora']} {estado}\n"
-                    else:
-                        txt += f"{i}. 📆 {e['fecha']} {e['hora']} {estado}\n"
-
-                txt += "\n➕ 2026-03-15 16:30\n🔁 lunes 08:00\n🗑 del:1\n✏️ edit:1 2026-03-20 18:00"
+                txt += "\n➕ lunes,viernes 16:30\n🗑 del:1"
                 await msg.edit_text(txt)
 
-        # 🗑 ELIMINAR
+        # ELIMINAR
         elif t.startswith("del:"):
             i = int(t.replace("del:", "")) - 1
-            if 0 <= i < len(data["eventos"]):
-                data["eventos"].pop(i)
+            if 0 <= i < len(data["programacion"]):
+                data["programacion"].pop(i)
                 guardar()
-                await msg.edit_text("🔴 Evento eliminado")
+                await msg.edit_text("🗑 Eliminado")
 
-        # ✏️ EDITAR
-        elif t.startswith("edit:"):
-            partes = raw.split()
-            i = int(partes[0].replace("edit:", "")) - 1
-            data["eventos"][i]["fecha"] = partes[1]
-            data["eventos"][i]["hora"] = partes[2]
-            guardar()
-            await msg.edit_text("🟡 Evento editado")
+        # AGREGAR PROGRAMACIÓN
+        elif any(d in t for d in dias_validos):
 
-        # ➕ EVENTO
-        else:
-            evento = parse_evento(raw)
-
-            if evento:
-                data["eventos"].append({
-                    "fecha": evento.strftime("%Y-%m-%d"),
-                    "hora": evento.strftime("%H:%M"),
-                    "activo": True
-                })
-                guardar()
-                await msg.edit_text("🟢 Evento agregado")
-
-            elif any(d in t for d in dias_validos):
+            try:
                 partes = t.split()
-                data["eventos"].append({
-                    "tipo": "repetitivo",
-                    "dia": partes[0],
-                    "hora": partes[1],
+                dias = partes[0].split(",")
+                hora = partes[1]
+
+                data["programacion"].append({
+                    "dias": dias,
+                    "hora": hora,
                     "activo": True
                 })
+
                 guardar()
-                await msg.edit_text("🟢 Repetición agregada")
+                await msg.edit_text("✅ Programado")
 
-            elif "activar" in t:
-                await msg.edit_text("🚀 AUTO EN MARCHA")
+            except:
+                await msg.edit_text("❌ Usa: lunes,viernes 16:30")
 
-            else:
-                await msg.edit_text("❌ Comando inválido")
+        elif "activar" in t:
+            await msg.edit_text("🚀 AUTO CORRIENDO")
+
+        else:
+            await msg.edit_text("❌ Comando inválido")
 
     except Exception as e:
         print("ERROR:", e)
-        await msg.edit_text("⚠️ Error interno")
-        
+        await msg.edit_text("⚠️ Error")
+
 # -------- run --------
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.ALL, texto))
 
-print("BOT PRO LISTO")
+print("BOT LISTO")
 app.run_polling()
