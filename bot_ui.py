@@ -93,17 +93,22 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # MENSAJE
         elif "mensaje" in t:
-            context.user_data["modo"] = True
-            await update.message.reply_text("📩 Envía mensaje")
+            context.user_data["modo"] = "esperando_contenido"
+            await update.message.reply_text("📩 Envía el mensaje a guardar")
 
-        elif context.user_data.get("modo"):
+        elif context.user_data.get("modo") == "esperando_contenido":
+
             data["contenido"] = {
                 "chat_id": update.message.chat_id,
                 "message_id": update.message.message_id
             }
+
             guardar()
-            context.user_data["modo"] = False
-            await update.message.reply_text("✅ Mensaje guardado")
+
+            # 🔥 FIX IMPORTANTE
+            context.user_data.clear()
+
+            await update.message.reply_text("✅ Mensaje guardado correctamente")
 
         # HORARIOS
         elif "horarios" in t:
@@ -223,5 +228,5 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, texto))
 
-print("🔥 BOT FUNCIONANDO 100%")
+print("🔥 BOT 100% FUNCIONAL")
 app.run_polling()
