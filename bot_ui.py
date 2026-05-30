@@ -7,23 +7,17 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     CallbackQueryHandler,
-    MessageHandler,
-    filters,
     ContextTypes
 )
 
-import json, unicodedata, re, difflib
+import json
 
 TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
 CONFIG_PATH = "config_data.json"
 
-data = {"programacion": []}
+data = {"programacion": [], "contenido": {}, "canales": []}
 
 # -------- utils --------
-def guardar():
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-
 def cargar():
     global data
     try:
@@ -32,16 +26,12 @@ def cargar():
     except:
         guardar()
 
-def limpiar(texto):
-    texto = texto.lower()
-    texto = unicodedata.normalize('NFD', texto)
-    texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
-    return texto.strip()
+def guardar():
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
 # -------- MENÚ PRINCIPAL --------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    cargar()
+async def menu_principal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [InlineKeyboardButton("📊 Panel", callback_data="panel")],
@@ -50,48 +40,61 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "🚀 BOT PRO",
+        "🏠 MENÚ PRINCIPAL",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# -------- CALLBACKS --------
+# -------- START --------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cargar()
+    await menu_principal(update, context)
+
+# -------- SUBMENÚ HORARIOS --------
+async def menu_horarios(query):
+
+    keyboard = [
+        [InlineKeyboardButton("➕ Agregar", callback_data="add")],
+        [InlineKeyboardButton("📋 Ver", callback_data="ver")],
+        [InlineKeyboardButton("⬅️ Volver", callback_data="main")]
+    ]
+
+    await query.edit_message_text(
+        "⏰ HORARIOS",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# -------- CALLBACK CENTRAL --------
 async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
     await query.answer()
-    cargar()
 
     data_cb = query.data
 
-    # PANEL
-    if data_cb == "panel":
-
-        await query.edit_message_text(
-            f"📊 PANEL\n\n"
-            f"⏰ Horarios: {len(data['programacion'])}\n"
-            f"⚡ Estado: ACTIVO",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("⬅️ Volver", callback_data="main")]
-            ])
-        )
-
-    # MENÚ PRINCIPAL
-    elif data_cb == "main":
-        await start(update, context)
-
-    # HORARIOS MENU
-    elif data_cb == "horarios":
-
+    # VOLVER
+    if data_cb == "main":
         keyboard = [
-            [InlineKeyboardButton("➕ Agregar", callback_data="add")],
-            [InlineKeyboardButton("📋 Ver", callback_data="ver")],
-            [InlineKeyboardButton("⬅️ Volver", callback_data="main")]
+            [InlineKeyboardButton("📊 Panel", callback_data="panel")],
+            [InlineKeyboardButton("⏰ Horarios", callback_data="horarios")],
+            [InlineKeyboardButton("📋 Activos", callback_data="activos")]
         ]
 
         await query.edit_message_text(
-            "⏰ HORARIOS",
+            "🏠 MENÚ PRINCIPAL",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+
+    # PANEL
+    elif data_cb == "panel":
+        await query.edit_message_text(
+            f"📊 PANEL\n\n"
+            f"📢 Canales: {len(data['canales'])}\n"
+            f"⏰ Horarios: {len(data['programacion'])}"
+        )
+
+    # HORARIOS
+    elif data_cb == "horarios":
+        await menu_horarios(query)
 
     # VER HORARIOS
     elif data_cb == "ver":
@@ -102,15 +105,14 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             txt = "📋 HORARIOS:\n\n"
 
             for i, p in enumerate(data["programacion"], 1):
-                estado = "🟢" if p.get("activo", True) else "🔴"
                 txt += f"{i}. {', '.join(p['dias'])}\n"
-                txt += f"🕒 {', '.join(p['horas'])} {estado}\n\n"
+                txt += f"🕒 {', '.join(p['horas'])}\n\n"
+
+        keyboard = [[InlineKeyboardButton("⬅️ Volver", callback_data="horarios")]]
 
         await query.edit_message_text(
             txt,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("⬅️ Volver", callback_data="horarios")]
-            ])
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
     # ACTIVOS
@@ -126,14 +128,14 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 txt += f"{', '.join(p['dias'])}\n"
                 txt += f"🕒 {', '.join(p['horas'])}\n\n"
 
+        keyboard = [[InlineKeyboardButton("⬅️ Volver", callback_data="main")]]
+
         await query.edit_message_text(
             txt,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("⬅️ Volver", callback_data="main")]
-            ])
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    # AGREGAR
+    # AGREGAR HORARIO (PASO 1)
     elif data_cb == "add":
 
         context.user_data["dias"] = []
@@ -150,7 +152,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             [InlineKeyboardButton("D", callback_data="d_domingo")],
 
-            [InlineKeyboardButton("⏰ Hora", callback_data="hora")],
+            [InlineKeyboardButton("⏰ Horas", callback_data="hora")],
             [InlineKeyboardButton("✅ Guardar", callback_data="save")],
             [InlineKeyboardButton("⬅️ Volver", callback_data="horarios")]
         ]
@@ -160,15 +162,10 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    # SELECCIÓN DÍA
+    # SELECCIONAR DÍAS
     elif data_cb.startswith("d_"):
         dia = data_cb.replace("d_", "")
-
-        context.user_data.setdefault("dias", [])
-
-        if dia not in context.user_data["dias"]:
-            context.user_data["dias"].append(dia)
-
+        context.user_data["dias"].append(dia)
         await query.answer(f"✔ {dia}")
 
     # MENÚ HORAS
@@ -182,19 +179,14 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
 
         await query.edit_message_text(
-            "⏰ Selecciona hora",
+            "⏰ Selecciona horas",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    # SELECCIÓN HORA
+    # SELECCIONAR HORAS
     elif data_cb.startswith("h_"):
         hora = data_cb.replace("h_", "")
-
-        context.user_data.setdefault("horas", [])
-
-        if hora not in context.user_data["horas"]:
-            context.user_data["horas"].append(hora)
-
+        context.user_data["horas"].append(hora)
         await query.answer(f"✔ {hora}")
 
     # GUARDAR
@@ -217,42 +209,11 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.edit_message_text("✅ Guardado correctamente")
 
-# -------- TEXTO (OPCIONAL INTELIGENTE) --------
-async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    cargar()
-
-    raw = update.message.text or ""
-    t = limpiar(raw)
-
-    dias_validos = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"]
-
-    if any(d in t for d in dias_validos):
-
-        match = re.match(r"(.+?)\s+(.+)$", t)
-
-        dias_txt = match.group(1)
-        horas_txt = match.group(2)
-
-        dias = [d.strip() for d in dias_txt.split(",")]
-        horas = [h.strip() for h in horas_txt.split(",")]
-
-        data["programacion"].append({
-            "dias": dias,
-            "horas": horas,
-            "activo": True
-        })
-
-        guardar()
-
-        await update.message.reply_text("✅ Programado")
-
 # -------- RUN --------
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(callbacks))
-app.add_handler(MessageHandler(filters.TEXT, texto))
 
-print("🔥 BOT APP PRO")
+print("🔥 BOT APP REAL")
 app.run_polling()
