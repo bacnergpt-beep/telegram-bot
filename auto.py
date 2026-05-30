@@ -17,7 +17,7 @@ dias_map = {
 }
 
 async def main():
-    print("🔥 AUTO PRO ACTIVO")
+    print("🔥 AUTO CORRIENDO")
 
     while True:
         try:
@@ -34,59 +34,42 @@ async def main():
             dia_en = now.strftime("%A").lower()
             dia_actual = dias_map.get(dia_en, dia_en)
 
-            for evento in data.get("eventos", []):
+            for prog in data.get("programacion", []):
 
-                if not evento.get("activo", True):
+                if not prog.get("activo", True):
                     continue
 
-                try:
-                    if evento.get("fecha"):
-                        dt_evento = datetime.strptime(
-                            f"{evento['fecha']} {evento['hora']}",
-                            "%Y-%m-%d %H:%M"
-                        ).replace(tzinfo=tz)
+                dias = prog.get("dias", [])
+                hora = prog.get("hora")
 
-                        clave = f"{evento['fecha']}_{evento['hora']}"
+                if dia_actual not in dias:
+                    continue
 
-                    elif evento.get("tipo") == "repetitivo":
+                dt_evento = datetime.strptime(hora, "%H:%M").replace(
+                    year=now.year,
+                    month=now.month,
+                    day=now.day,
+                    tzinfo=tz
+                )
 
-                        if evento["dia"] != dia_actual:
-                            continue
+                diferencia = abs((now - dt_evento).total_seconds())
 
-                        dt_evento = datetime.strptime(
-                            evento["hora"],
-                            "%H:%M"
-                        ).replace(
-                            year=now.year,
-                            month=now.month,
-                            day=now.day,
-                            tzinfo=tz
+                clave = f"{dia_actual}_{hora}_{now.strftime('%Y-%m-%d')}"
+
+                if diferencia <= 60 and clave not in ejecutados:
+
+                    for canal in data.get("canales", []):
+                        await bot.copy_message(
+                            chat_id=canal,
+                            from_chat_id=contenido["chat_id"],
+                            message_id=contenido["message_id"]
                         )
+                        print("✅ enviado:", canal)
 
-                        clave = f"{evento['dia']}_{evento['hora']}_{now.strftime('%Y-%m-%d')}"
-
-                    else:
-                        continue
-
-                    diferencia = abs((now - dt_evento).total_seconds())
-
-                    if diferencia <= 60 and clave not in ejecutados:
-
-                        for canal in data.get("canales", []):
-                            await bot.copy_message(
-                                chat_id=canal,
-                                from_chat_id=contenido["chat_id"],
-                                message_id=contenido["message_id"]
-                            )
-                            print("✅ enviado:", canal)
-
-                        ejecutados.add(clave)
-
-                except Exception as e:
-                    print("evento error:", e)
+                    ejecutados.add(clave)
 
         except Exception as e:
-            print("ERROR GLOBAL:", e)
+            print("ERROR:", e)
 
         await asyncio.sleep(2)
 
