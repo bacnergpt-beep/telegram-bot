@@ -17,7 +17,7 @@ dias_map = {
 }
 
 async def main():
-    print("🔥 AUTO CORRIENDO")
+    print("🔥 AUTO PRO")
 
     while True:
         try:
@@ -39,34 +39,33 @@ async def main():
                 if not prog.get("activo", True):
                     continue
 
-                dias = prog.get("dias", [])
-                hora = prog.get("hora")
-
-                if dia_actual not in dias:
+                if dia_actual not in prog["dias"]:
                     continue
 
-                dt_evento = datetime.strptime(hora, "%H:%M").replace(
-                    year=now.year,
-                    month=now.month,
-                    day=now.day,
-                    tzinfo=tz
-                )
+                for hora in prog["horas"]:
 
-                diferencia = abs((now - dt_evento).total_seconds())
+                    dt = datetime.strptime(hora, "%H:%M").replace(
+                        year=now.year,
+                        month=now.month,
+                        day=now.day,
+                        tzinfo=tz
+                    )
 
-                clave = f"{dia_actual}_{hora}_{now.strftime('%Y-%m-%d')}"
+                    diff = abs((now - dt).total_seconds())
 
-                if diferencia <= 60 and clave not in ejecutados:
+                    clave = f"{dia_actual}_{hora}_{now.strftime('%Y-%m-%d')}"
 
-                    for canal in data.get("canales", []):
-                        await bot.copy_message(
-                            chat_id=canal,
-                            from_chat_id=contenido["chat_id"],
-                            message_id=contenido["message_id"]
-                        )
-                        print("✅ enviado:", canal)
+                    if diff <= 60 and clave not in ejecutados:
 
-                    ejecutados.add(clave)
+                        for canal in data.get("canales", []):
+                            await bot.copy_message(
+                                chat_id=canal,
+                                from_chat_id=contenido["chat_id"],
+                                message_id=contenido["message_id"]
+                            )
+                            print("✅ enviado:", canal)
+
+                        ejecutados.add(clave)
 
         except Exception as e:
             print("ERROR:", e)
