@@ -1,7 +1,7 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-import json, asyncio, unicodedata, re, difflib
+import json, unicodedata, re, difflib
 from datetime import datetime
 
 TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
@@ -70,14 +70,11 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     raw = update.message.text or ""
     t = limpiar(raw)
 
-    msg = await update.message.reply_text("⏳")
-    await asyncio.sleep(0.1)
-
     try:
 
         # PANEL
         if "panel" in t:
-            await msg.edit_text(
+            await update.message.reply_text(
                 f"📊 PANEL\n\n"
                 f"📢 Canales: {len(data['canales'])}\n"
                 f"⏰ Horarios: {len(data['programacion'])}"
@@ -85,19 +82,19 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # CANALES
         elif "canales" in t:
-            await msg.edit_text("📢 Envía ID canal\nEj: -100123456")
+            await update.message.reply_text("📢 Envía ID canal\nEj: -100123456")
 
         elif raw.strip().startswith("-100"):
             cid = int(raw.strip())
             if cid not in data["canales"]:
                 data["canales"].append(cid)
                 guardar()
-            await msg.edit_text("✅ Canal agregado")
+            await update.message.reply_text("✅ Canal agregado")
 
         # MENSAJE
         elif "mensaje" in t:
             context.user_data["modo"] = True
-            await msg.edit_text("📩 Envía mensaje")
+            await update.message.reply_text("📩 Envía mensaje")
 
         elif context.user_data.get("modo"):
             data["contenido"] = {
@@ -106,13 +103,13 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             guardar()
             context.user_data["modo"] = False
-            await msg.edit_text("✅ Mensaje guardado")
+            await update.message.reply_text("✅ Mensaje guardado")
 
         # HORARIOS
         elif "horarios" in t:
 
             if not data["programacion"]:
-                await msg.edit_text(
+                await update.message.reply_text(
                     "⏰ CONFIGURAR\n\n"
                     "Ejemplos:\n"
                     "lunes 5pm\n"
@@ -127,45 +124,45 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     txt += f"🕒 {', '.join(p['horas'])} {estado}\n\n"
 
                 txt += "🗑 del:1 | ⏸ off:1 | ▶️ on:1"
-                await msg.edit_text(txt)
+                await update.message.reply_text(txt)
 
         # ACTIVOS
         elif "activos" in t:
             activos = [p for p in data["programacion"] if p.get("activo", True)]
 
             if not activos:
-                await msg.edit_text("⚫ No hay activos")
+                await update.message.reply_text("⚫ No hay activos")
             else:
                 txt = "📋 ACTIVOS:\n\n"
                 for p in activos:
                     txt += f"{', '.join(p['dias'])}\n"
                     txt += f"🕒 {', '.join(p['horas'])}\n\n"
-                await msg.edit_text(txt)
+                await update.message.reply_text(txt)
 
         # BORRAR
         elif t.startswith("del:"):
             i = int(t.replace("del:", "")) - 1
             data["programacion"].pop(i)
             guardar()
-            await msg.edit_text("🗑 Eliminado")
+            await update.message.reply_text("🗑 Eliminado")
 
         # PAUSAR
         elif t.startswith("off:"):
             i = int(t.replace("off:", "")) - 1
             data["programacion"][i]["activo"] = False
             guardar()
-            await msg.edit_text("🔴 Pausado")
+            await update.message.reply_text("🔴 Pausado")
 
         # ACTIVAR
         elif t.startswith("on:"):
             i = int(t.replace("on:", "")) - 1
             data["programacion"][i]["activo"] = True
             guardar()
-            await msg.edit_text("🟢 Activado")
+            await update.message.reply_text("🟢 Activado")
 
         # PANEL COMPLETO
         elif t.startswith(".panel"):
-            await msg.edit_text(
+            await update.message.reply_text(
                 "📘 PANEL\n\n"
                 "Agregar: lunes 5pm\n"
                 "Ver: horarios\n"
@@ -198,7 +195,7 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     horas_final.append(ph)
 
             if not dias_final or not horas_final:
-                await msg.edit_text("❌ Error en formato")
+                await update.message.reply_text("❌ Error en formato")
                 return
 
             data["programacion"].append({
@@ -208,17 +205,17 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             })
 
             guardar()
-            await msg.edit_text("✅ Programado")
+            await update.message.reply_text("✅ Programado")
 
         elif "activar" in t:
-            await msg.edit_text("🚀 AUTO ACTIVO")
+            await update.message.reply_text("🚀 AUTO ACTIVO")
 
         else:
-            await msg.edit_text("❌ No válido")
+            await update.message.reply_text("❌ No válido")
 
     except Exception as e:
         print("ERROR:", e)
-        await msg.edit_text("⚠️ Error")
+        await update.message.reply_text("⚠️ Error")
 
 # -------- run --------
 app = ApplicationBuilder().token(TOKEN).build()
@@ -226,5 +223,5 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, texto))
 
-print("🔥 BOT FUNCIONANDO CORRECTO")
+print("🔥 BOT FUNCIONANDO 100%")
 app.run_polling()
