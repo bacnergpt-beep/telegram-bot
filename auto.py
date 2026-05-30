@@ -3,7 +3,7 @@ from datetime import datetime
 from telegram import Bot
 import pytz
 
-TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
+TOKEN = "TU_TOKEN"
 CONFIG_PATH = "config_data.json"
 
 bot = Bot(token=TOKEN)
@@ -31,8 +31,7 @@ async def main():
                 await asyncio.sleep(2)
                 continue
 
-            dia_en = now.strftime("%A").lower()
-            dia_actual = dias_map.get(dia_en, dia_en)
+            dia_actual = dias_map[now.strftime("%A").lower()]
 
             for prog in data.get("programacion", []):
 
@@ -51,11 +50,7 @@ async def main():
                         tzinfo=tz
                     )
 
-                    diff = abs((now - dt).total_seconds())
-
-                    clave = f"{dia_actual}_{hora}_{now.strftime('%Y-%m-%d')}"
-
-                    if diff <= 60 and clave not in ejecutados:
+                    if abs((now - dt).total_seconds()) <= 60:
 
                         for canal in data.get("canales", []):
                             await bot.copy_message(
@@ -63,9 +58,8 @@ async def main():
                                 from_chat_id=contenido["chat_id"],
                                 message_id=contenido["message_id"]
                             )
-                            print("✅ enviado:", canal)
 
-                        ejecutados.add(clave)
+                        print("✅ enviado")
 
         except Exception as e:
             print("ERROR:", e)
