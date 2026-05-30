@@ -7,7 +7,7 @@ from datetime import datetime
 TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
 CONFIG_PATH = "config_data.json"
 
-data = {"programacion": [], "canales": [], "contenido": {}}
+data = {"programacion": [], "canales": [], "contenido": []}
 
 # -------- utils --------
 def limpiar(texto):
@@ -60,14 +60,19 @@ def menu():
 # -------- start --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cargar()
-    await update.message.reply_text("🚀 BOT FUNCIONANDO", reply_markup=menu())
+    await update.message.reply_text("🚀 BOT PRO FUNCIONANDO", reply_markup=menu())
 
 # -------- lógica --------
 async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     cargar()
 
-    raw = update.message.text or ""
+    raw = (
+        update.message.text or
+        update.message.caption or
+        ""
+    )
+
     t = limpiar(raw)
 
     try:
@@ -91,24 +96,57 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 guardar()
             await update.message.reply_text("✅ Canal agregado")
 
-        # MENSAJE
+        # -------- MENSAJES PRO --------
         elif "mensaje" in t:
-            context.user_data["modo"] = "esperando_contenido"
-            await update.message.reply_text("📩 Envía el mensaje a guardar")
+            context.user_data["modo"] = "multi_mensaje"
+            context.user_data["temp_mensajes"] = []
 
-        elif context.user_data.get("modo") == "esperando_contenido":
+            await update.message.reply_text(
+                "📩 Envía los mensajes (foto, texto, video)\n"
+                "Cuando termines escribe: guardar"
+            )
 
-            data["contenido"] = {
+        elif context.user_data.get("modo") == "multi_mensaje":
+
+            # confirmar guardado
+            if t == "guardar":
+
+                mensajes = context.user_data.get("temp_mensajes", [])
+
+                if not mensajes:
+                    await update.message.reply_text("❌ No hay mensajes")
+                    return
+
+                data["contenido"] = mensajes
+                guardar()
+
+                context.user_data.clear()
+
+                await update.message.reply_text(
+                    f"✅ Guardados {len(mensajes)} mensajes"
+                )
+                return
+
+            # detectar tipo
+            tipo = "texto"
+
+            if update.message.photo:
+                tipo = "foto"
+            elif update.message.video:
+                tipo = "video"
+            elif update.message.document:
+                tipo = "archivo"
+
+            context.user_data["temp_mensajes"].append({
                 "chat_id": update.message.chat_id,
-                "message_id": update.message.message_id
-            }
+                "message_id": update.message.message_id,
+                "tipo": tipo
+            })
 
-            guardar()
-
-            # 🔥 FIX IMPORTANTE
-            context.user_data.clear()
-
-            await update.message.reply_text("✅ Mensaje guardado correctamente")
+            await update.message.reply_text(
+                f"📦 Guardado ({tipo})\n"
+                f"Total: {len(context.user_data['temp_mensajes'])}"
+            )
 
         # HORARIOS
         elif "horarios" in t:
@@ -116,7 +154,7 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not data["programacion"]:
                 await update.message.reply_text(
                     "⏰ CONFIGURAR\n\n"
-                    "Ejemplos:\n"
+                    "Ej:\n"
                     "lunes 5pm\n"
                     "lunes,viernes 6pm\n"
                     "lunes 9am,2pm,8pm"
@@ -226,7 +264,7 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, texto))
+app.add_handler(MessageHandler(filters.ALL, texto))
 
-print("🔥 BOT 100% FUNCIONAL")
+print("🔥 BOT PRO 100% FUNCIONAL")
 app.run_polling()
