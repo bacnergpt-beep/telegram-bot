@@ -3,7 +3,7 @@ from datetime import datetime
 from telegram import Bot
 import pytz
 
-TOKEN = "TU_TOKEN"
+TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
 CONFIG_PATH = "config_data.json"
 
 bot = Bot(token=TOKEN)
