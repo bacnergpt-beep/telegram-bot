@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 import json, asyncio, unicodedata, re, difflib
 from datetime import datetime
 
-TOKEN = "TU_TOKEN"
+TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
 CONFIG_PATH = "config_data.json"
 
 data = {"programacion": [], "canales": [], "contenido": {}}
