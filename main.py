@@ -1,27 +1,280 @@
-import subprocess
-import threading
-from flask import Flask
-import time
-import os
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-app = Flask(__name__)
+import json, unicodedata, re, difflib, asyncio
+from datetime import datetime
 
-# 🔥 Ruta para mantener activo Render
-@app.route('/')
-def home():
-    return "BOT ACTIVO 🔥"
+TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
+CONFIG_PATH = "config_data.json"
 
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+# =========================
+# DATA
+# =========================
+def load():
+    try:
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {"programacion": [], "canales": [], "contenido": []}
 
-# correr servidor web
-threading.Thread(target=run_web).start()
+def save(data):
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
-# correr tus bots
-subprocess.Popen(["python", "bot_ui.py"])
-subprocess.Popen(["python", "auto.py"])
+# =========================
+# HELPERS
+# =========================
+def clean(text):
+    text = text.lower()
+    text = unicodedata.normalize('NFD', text)
+    return ''.join(c for c in text if unicodedata.category(c) != 'Mn')
 
-# mantener vivo
-while True:
-    time.sleep(60)
+dias_validos = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"]
+
+def fix_day(d):
+    m = difflib.get_close_matches(clean(d), dias_validos, n=1, cutoff=0.6)
+    return m[0] if m else None
+
+def parse_hour(h):
+    h = h.lower().replace(" ", "")
+    try:
+        if "am" in h or "pm" in h:
+            t = datetime.strptime(h, "%I:%M%p") if ":" in h else datetime.strptime(h, "%I%p")
+            return t.strftime("%H:%M")
+        else:
+            hh, mm = map(int, h.split(":"))
+            return f"{hh:02d}:{mm:02d}"
+    except:
+        return None
+
+# =========================
+# MENU
+# =========================
+def menu():
+    return ReplyKeyboardMarkup([
+        ["📊 Panel", "📢 Canales"],
+        ["📩 Mensaje", "⏰ Horarios"],
+        ["📋 Activos", "🚀 Activar"]
+    ], resize_keyboard=True)
+
+# =========================
+# BOT
+# =========================
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🚀 BOT PRO ACTIVO", reply_markup=menu())
+
+# =========================
+# HANDLER
+# =========================
+async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    data = load()
+    msg = update.message
+
+    raw = msg.text or msg.caption or ""
+    t = clean(raw)
+
+    try:
+
+        # ===== GUARDAR MENSAJES =====
+        if context.user_data.get("mode") == "save":
+
+            if t == "guardar":
+                msgs = context.user_data.get("temp", [])
+
+                if not msgs:
+                    await msg.reply_text("❌ No hay mensajes")
+                    return
+
+                data["contenido"] = msgs
+                save(data)
+
+                context.user_data.clear()
+
+                await msg.reply_text(f"✅ Guardados {len(msgs)} mensajes")
+                return
+
+            context.user_data.setdefault("temp", [])
+
+            context.user_data["temp"].append({
+                "chat_id": msg.chat_id,
+                "message_id": msg.message_id
+            })
+
+            await msg.reply_text(
+                f"📦 Guardado\nTotal: {len(context.user_data['temp'])}"
+            )
+            return
+
+        # ===== ACTIVAR MODO MENSAJE =====
+        if "mensaje" in t:
+            context.user_data["mode"] = "save"
+            context.user_data["temp"] = []
+
+            await msg.reply_text("📩 Envía contenido (foto, texto o forward)\nEscribe 'guardar'")
+            return
+
+        # ===== PANEL =====
+        if "panel" in t:
+            await msg.reply_text(
+                f"📊 PANEL\n\nCanales: {len(data['canales'])}\nHorarios: {len(data['programacion'])}"
+            )
+            return
+
+        # ===== CANALES =====
+        if "canales" in t:
+            await msg.reply_text("Envía ID canal (-100...)")
+            return
+
+        if raw.startswith("-100"):
+            cid = int(raw)
+            if cid not in data["canales"]:
+                data["canales"].append(cid)
+                save(data)
+            await msg.reply_text("✅ Canal agregado")
+            return
+
+        # ===== HORARIOS =====
+        if "horarios" in t:
+
+            if not data["programacion"]:
+                await msg.reply_text("Ej:\nlunes 5pm\nlunes,viernes 6pm")
+            else:
+                txt = "⏰ HORARIOS:\n\n"
+                for i, p in enumerate(data["programacion"], 1):
+                    txt += f"{i}. {p['dias']} - {p['horas']}\n"
+                await msg.reply_text(txt)
+
+            return
+
+        # ===== ACTIVOS =====
+        if "activos" in t:
+            activos = [p for p in data["programacion"] if p.get("activo", True)]
+
+            if not activos:
+                await msg.reply_text("⚫ No hay activos")
+            else:
+                txt = "📋 ACTIVOS:\n\n"
+                for p in activos:
+                    txt += f"{p['dias']} - {p['horas']}\n"
+                await msg.reply_text(txt)
+
+            return
+
+        # ===== ACTIVAR AUTO =====
+        if "activar" in t:
+            await msg.reply_text("🚀 AUTO ACTIVADO")
+            return
+
+        # ===== AGREGAR HORARIO =====
+        if re.match(r"^[a-z, ]+\s+\d", t):
+
+            match = re.match(r"(.+?)\s+(.+)$", t)
+            if not match:
+                return
+
+            dias_txt, horas_txt = match.groups()
+
+            dias = [fix_day(d) for d in dias_txt.split(",")]
+            horas = [parse_hour(h) for h in horas_txt.split(",")]
+
+            dias = [d for d in dias if d]
+            horas = [h for h in horas if h]
+
+            if not dias or not horas:
+                await msg.reply_text("❌ Error formato")
+                return
+
+            data["programacion"].append({
+                "dias": dias,
+                "horas": horas,
+                "activo": True
+            })
+
+            save(data)
+
+            await msg.reply_text("✅ Programado")
+            return
+
+        await msg.reply_text("❌ No válido")
+
+    except Exception as e:
+        print("ERROR:", e)
+        await msg.reply_text("⚠️ Error")
+
+# =========================
+# AUTO ENVÍO
+# =========================
+ultimo_envio = {}
+
+async def auto_envio(app):
+
+    print("🔥 AUTO INICIADO")
+
+    while True:
+        try:
+            now = datetime.now()
+            data = load()
+
+            contenidos = data.get("contenido", [])
+            if not contenidos:
+                await asyncio.sleep(10)
+                continue
+
+            dias_map = {
+                "monday":"lunes","tuesday":"martes","wednesday":"miercoles",
+                "thursday":"jueves","friday":"viernes","saturday":"sabado","sunday":"domingo"
+            }
+
+            dia_actual = dias_map[now.strftime("%A").lower()]
+
+            for prog in data.get("programacion", []):
+
+                if not prog.get("activo", True):
+                    continue
+
+                if dia_actual not in prog["dias"]:
+                    continue
+
+                for hora in prog["horas"]:
+
+                    if now.strftime("%H:%M") == hora:
+
+                        clave = f"{dia_actual}-{hora}"
+
+                        if ultimo_envio.get(clave) == now.date():
+                            continue
+
+                        for m in contenidos:
+                            for canal in data.get("canales", []):
+                                await app.bot.copy_message(
+                                    chat_id=canal,
+                                    from_chat_id=m["chat_id"],
+                                    message_id=m["message_id"]
+                                )
+
+                        print("✅ ENVIADO")
+
+                        ultimo_envio[clave] = now.date()
+
+        except Exception as e:
+            print("ERROR AUTO:", e)
+
+        await asyncio.sleep(20)
+
+# =========================
+# RUN
+# =========================
+async def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.ALL, handler))
+
+    asyncio.create_task(auto_envio(app))
+
+    print("🔥 BOT + AUTO CORRIENDO")
+
+    await app.run_polling()
+
+asyncio.run(main())
