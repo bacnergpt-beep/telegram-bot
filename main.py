@@ -13,9 +13,22 @@ CONFIG_PATH = "config_data.json"
 def load():
     try:
         with open(CONFIG_PATH, encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+
+            if not isinstance(data, dict):
+                raise Exception()
+
+            data.setdefault("programacion", [])
+            data.setdefault("canales", [])
+            data.setdefault("contenido", [])
+
+            return data
     except:
-        return {"programacion": [], "canales": [], "contenido": []}
+        return {
+            "programacion": [],
+            "canales": [],
+            "contenido": []
+        }
 
 def save(data):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -58,10 +71,10 @@ def menu():
     ], resize_keyboard=True)
 
 # =========================
-# START
+# BOT
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🚀 BOT PRO ACTIVO", reply_markup=menu())
+    await update.message.reply_text("🚀 BOT FUNCIONANDO", reply_markup=menu())
 
 # =========================
 # HANDLER
@@ -101,19 +114,21 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "message_id": msg.message_id
             })
 
-            await msg.reply_text(f"📦 Guardado\nTotal: {len(context.user_data['temp'])}")
+            await msg.reply_text(f"📦 Guardado ({len(context.user_data['temp'])})")
             return
 
-        # ===== ACTIVAR MODO MENSAJE =====
+        # ===== ACTIVAR GUARDADO =====
         if "mensaje" in t:
             context.user_data["mode"] = "save"
             context.user_data["temp"] = []
-            await msg.reply_text("📩 Envía contenido (foto, texto o forward)\nEscribe 'guardar'")
+            await msg.reply_text("📩 Envía contenido y luego escribe 'guardar'")
             return
 
         # ===== PANEL =====
         if "panel" in t:
-            await msg.reply_text(f"📊 PANEL\n\nCanales: {len(data['canales'])}\nHorarios: {len(data['programacion'])}")
+            await msg.reply_text(
+                f"📊 PANEL\n\nCanales: {len(data['canales'])}\nHorarios: {len(data['programacion'])}"
+            )
             return
 
         # ===== CANALES =====
@@ -131,28 +146,37 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # ===== HORARIOS =====
         if "horarios" in t:
-            if not data["programacion"]:
-                await msg.reply_text("Ej:\nlunes 5pm\nlunes,viernes 6pm")
-            else:
-                txt = "⏰ HORARIOS:\n\n"
-                for i, p in enumerate(data["programacion"], 1):
-                    txt += f"{i}. {p['dias']} - {p['horas']}\n"
-                await msg.reply_text(txt)
+
+            prog = data.get("programacion", [])
+
+            if not prog:
+                await msg.reply_text("⚠️ No hay horarios\nEj:\nlunes 5pm")
+                return
+
+            txt = "⏰ HORARIOS:\n\n"
+
+            for i, p in enumerate(prog, 1):
+                dias = ", ".join(p.get("dias", []))
+                horas = ", ".join(p.get("horas", []))
+                txt += f"{i}. {dias} ⏰ {horas}\n"
+
+            await msg.reply_text(txt)
             return
 
         # ===== ACTIVOS =====
         if "activos" in t:
-            activos = [p for p in data["programacion"] if p.get("activo", True)]
+            activos = [p for p in data.get("programacion", []) if p.get("activo", True)]
+
             if not activos:
                 await msg.reply_text("⚫ No hay activos")
             else:
-                txt = "📋 ACTIVOS:\n\n"
+                txt = ""
                 for p in activos:
                     txt += f"{p['dias']} - {p['horas']}\n"
                 await msg.reply_text(txt)
             return
 
-        # ===== ACTIVAR AUTO =====
+        # ===== ACTIVAR =====
         if "activar" in t:
             await msg.reply_text("🚀 AUTO ACTIVADO")
             return
@@ -161,9 +185,6 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if re.match(r"^[a-z, ]+\s+\d", t):
 
             match = re.match(r"(.+?)\s+(.+)$", t)
-            if not match:
-                return
-
             dias_txt, horas_txt = match.groups()
 
             dias = [fix_day(d) for d in dias_txt.split(",")]
@@ -199,6 +220,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ultimo_envio = {}
 
 async def auto_envio(app):
+
     print("🔥 AUTO INICIADO")
 
     while True:
@@ -219,9 +241,6 @@ async def auto_envio(app):
             dia_actual = dias_map[now.strftime("%A").lower()]
 
             for prog in data.get("programacion", []):
-
-                if not prog.get("activo", True):
-                    continue
 
                 if dia_actual not in prog["dias"]:
                     continue
@@ -252,7 +271,7 @@ async def auto_envio(app):
         await asyncio.sleep(20)
 
 # =========================
-# RUN (ESTABLE RAILWAY)
+# RUN
 # =========================
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -261,10 +280,9 @@ app.add_handler(MessageHandler(filters.ALL, handler))
 
 async def post_init(app):
     asyncio.create_task(auto_envio(app))
-    print("🔥 AUTO INICIADO")
 
 app.post_init = post_init
 
-print("🔥 BOT FUNCIONANDO")
+print("🔥 BOT LISTO")
 
 app.run_polling()
