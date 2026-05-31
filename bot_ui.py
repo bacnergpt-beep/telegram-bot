@@ -7,29 +7,31 @@ from datetime import datetime
 TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
 CONFIG_PATH = "config_data.json"
 
-data = {"programacion": [], "canales": [], "contenido": []}
+# -------- DATA --------
+def load():
+    try:
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {"programacion": [], "canales": [], "contenido": []}
 
-# -------- utils --------
-def limpiar(texto):
-    texto = texto.lower()
-    texto = unicodedata.normalize('NFD', texto)
-    texto = ''.join(c for c in texto if unicodedata.category(c) != 'Mn')
-    return texto.strip()
-
-def guardar():
+def save(data):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-def cargar():
-    global data
-    try:
-        with open(CONFIG_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-    except:
-        guardar()
+# -------- HELPERS --------
+def clean(text):
+    text = text.lower()
+    text = unicodedata.normalize('NFD', text)
+    return ''.join(c for c in text if unicodedata.category(c) != 'Mn')
 
-# -------- hora --------
-def parse_hora(h):
+dias_validos = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"]
+
+def fix_day(d):
+    m = difflib.get_close_matches(clean(d), dias_validos, n=1, cutoff=0.6)
+    return m[0] if m else None
+
+def parse_hour(h):
     h = h.lower().replace(" ", "")
     try:
         if "am" in h or "pm" in h:
@@ -41,54 +43,47 @@ def parse_hora(h):
     except:
         return None
 
-# -------- días --------
-dias_validos = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"]
-
-def corregir_dia(d):
-    d = limpiar(d)
-    match = difflib.get_close_matches(d, dias_validos, n=1, cutoff=0.6)
-    return match[0] if match else None
-
-# -------- menú --------
+# -------- MENU --------
 def menu():
     return ReplyKeyboardMarkup([
         ["📊 Panel", "📢 Canales"],
         ["📩 Mensaje", "⏰ Horarios"],
-        ["📋 Activos", "🚀 Activar"]
+        ["📋 Activos"]
     ], resize_keyboard=True)
 
-# -------- start --------
+# -------- START --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cargar()
-    await update.message.reply_text("🚀 BOT PRO FUNCIONANDO", reply_markup=menu())
+    await update.message.reply_text("🚀 BOT LISTO", reply_markup=menu())
 
-# -------- lógica --------
-async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# -------- MAIN --------
+async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    cargar()
+    data = load()
 
     raw = update.message.text or update.message.caption or ""
-    t = limpiar(raw)
+    t = clean(raw)
 
     try:
 
-        # 🔥 PRIORIDAD: GUARDAR MENSAJES
-        if context.user_data.get("modo") == "multi_mensaje":
+        # =============================
+        # 🧠 PRIORIDAD: MODO MENSAJE
+        # =============================
+        if context.user_data.get("mode") == "save":
 
             if t == "guardar":
 
-                mensajes = context.user_data.get("temp_mensajes", [])
+                msgs = context.user_data.get("temp", [])
 
-                if not mensajes:
+                if not msgs:
                     await update.message.reply_text("❌ No hay mensajes")
                     return
 
-                data["contenido"] = mensajes
-                guardar()
+                data["contenido"] = msgs
+                save(data)
 
                 context.user_data.clear()
 
-                await update.message.reply_text(f"✅ Guardados {len(mensajes)} mensajes")
+                await update.message.reply_text(f"✅ Guardados {len(msgs)} mensajes")
                 return
 
             tipo = "texto"
@@ -96,151 +91,135 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 tipo = "foto"
             elif update.message.video:
                 tipo = "video"
-            elif update.message.document:
-                tipo = "archivo"
 
-            context.user_data.setdefault("temp_mensajes", [])
-
-            context.user_data["temp_mensajes"].append({
+            context.user_data.setdefault("temp", [])
+            context.user_data["temp"].append({
                 "chat_id": update.message.chat_id,
-                "message_id": update.message.message_id,
-                "tipo": tipo
+                "message_id": update.message.message_id
             })
 
             await update.message.reply_text(
-                f"📦 Guardado ({tipo})\nTotal: {len(context.user_data['temp_mensajes'])}"
+                f"📦 Guardado ({tipo})\nTotal: {len(context.user_data['temp'])}"
             )
             return
 
-        # PANEL
-        elif "panel" in t:
+        # =============================
+        # 📩 ACTIVAR MODO MENSAJE
+        # =============================
+        if "mensaje" in t:
+            context.user_data["mode"] = "save"
+            context.user_data["temp"] = []
+
+            await update.message.reply_text(
+                "📩 Envía contenido\nEscribe 'guardar' para terminar"
+            )
+            return
+
+        # =============================
+        # 📊 PANEL
+        # =============================
+        if "panel" in t:
             await update.message.reply_text(
                 f"📊 PANEL\n\n"
-                f"📢 Canales: {len(data['canales'])}\n"
-                f"⏰ Horarios: {len(data['programacion'])}"
+                f"Canales: {len(data['canales'])}\n"
+                f"Horarios: {len(data['programacion'])}"
             )
+            return
 
-        # CANALES
-        elif "canales" in t:
-            await update.message.reply_text("📢 Envía ID canal\nEj: -100123456")
+        # =============================
+        # 📢 CANALES
+        # =============================
+        if "canales" in t:
+            await update.message.reply_text("Envía ID canal (-100...)")
+            return
 
-        elif raw.strip().startswith("-100"):
-            cid = int(raw.strip())
+        if raw.startswith("-100"):
+            cid = int(raw)
             if cid not in data["canales"]:
                 data["canales"].append(cid)
-                guardar()
+                save(data)
             await update.message.reply_text("✅ Canal agregado")
+            return
 
-        # ACTIVAR MODO MENSAJE
-        elif "mensaje" in t:
-            context.user_data["modo"] = "multi_mensaje"
-            context.user_data["temp_mensajes"] = []
-
-            await update.message.reply_text(
-                "📩 Envía los mensajes (foto, texto, etc)\n"
-                "Cuando termines escribe: guardar"
-            )
-
-        # HORARIOS
-        elif "horarios" in t:
+        # =============================
+        # ⏰ HORARIOS
+        # =============================
+        if "horarios" in t:
 
             if not data["programacion"]:
                 await update.message.reply_text(
-                    "⏰ CONFIGURAR\n\n"
-                    "Ej:\n"
-                    "lunes 5pm\n"
-                    "lunes,viernes 6pm\n"
-                    "lunes 9am,2pm,8pm"
+                    "Ej:\nlunes 5pm\nlunes,viernes 6pm"
                 )
             else:
-                txt = "⏰ HORARIOS:\n\n"
+                txt = ""
                 for i, p in enumerate(data["programacion"], 1):
-                    estado = "🟢" if p.get("activo", True) else "🔴"
-                    txt += f"{i}. {', '.join(p['dias'])}\n"
-                    txt += f"🕒 {', '.join(p['horas'])} {estado}\n\n"
-
-                txt += "🗑 del:1 | ⏸ off:1 | ▶️ on:1"
+                    txt += f"{i}. {p['dias']} - {p['horas']}\n"
                 await update.message.reply_text(txt)
 
-        # ACTIVOS
-        elif "activos" in t:
+            return
+
+        # =============================
+        # 📋 ACTIVOS
+        # =============================
+        if "activos" in t:
             activos = [p for p in data["programacion"] if p.get("activo", True)]
 
             if not activos:
                 await update.message.reply_text("⚫ No hay activos")
             else:
-                txt = "📋 ACTIVOS:\n\n"
+                txt = ""
                 for p in activos:
-                    txt += f"{', '.join(p['dias'])}\n"
-                    txt += f"🕒 {', '.join(p['horas'])}\n\n"
+                    txt += f"{p['dias']} - {p['horas']}\n"
                 await update.message.reply_text(txt)
 
-        # BORRAR
-        elif t.startswith("del:"):
-            i = int(t.replace("del:", "")) - 1
-            data["programacion"].pop(i)
-            guardar()
-            await update.message.reply_text("🗑 Eliminado")
+            return
 
-        # PAUSAR
-        elif t.startswith("off:"):
-            i = int(t.replace("off:", "")) - 1
-            data["programacion"][i]["activo"] = False
-            guardar()
-            await update.message.reply_text("🔴 Pausado")
-
-        # ACTIVAR
-        elif t.startswith("on:"):
-            i = int(t.replace("on:", "")) - 1
-            data["programacion"][i]["activo"] = True
-            guardar()
-            await update.message.reply_text("🟢 Activado")
-
-        # HORARIO NUEVO (FIX)
-        elif re.match(r"^[a-z, ]+\s+\d", t):
+        # =============================
+        # ➕ AGREGAR HORARIO
+        # =============================
+        if re.match(r"^[a-z, ]+\s+\d", t):
 
             match = re.match(r"(.+?)\s+(.+)$", t)
             if not match:
-                await update.message.reply_text("❌ Formato inválido")
                 return
 
-            dias_txt = match.group(1)
-            horas_txt = match.group(2)
+            dias_txt, horas_txt = match.groups()
 
-            dias = dias_txt.split(",")
-            horas_lista = horas_txt.split(",")
+            dias = [fix_day(d) for d in dias_txt.split(",")]
+            horas = [parse_hour(h) for h in horas_txt.split(",")]
 
-            dias_final = [corregir_dia(d) for d in dias if corregir_dia(d)]
-            horas_final = [parse_hora(h) for h in horas_lista if parse_hora(h)]
+            dias = [d for d in dias if d]
+            horas = [h for h in horas if h]
 
-            if not dias_final or not horas_final:
-                await update.message.reply_text("❌ Error en formato")
+            if not dias or not horas:
+                await update.message.reply_text("❌ Error formato")
                 return
 
             data["programacion"].append({
-                "dias": dias_final,
-                "horas": horas_final,
+                "dias": dias,
+                "horas": horas,
                 "activo": True
             })
 
-            guardar()
+            save(data)
+
             await update.message.reply_text("✅ Programado")
+            return
 
-        elif "activar" in t:
-            await update.message.reply_text("🚀 AUTO ACTIVO")
-
-        else:
-            await update.message.reply_text("❌ No válido")
+        # =============================
+        # DEFAULT
+        # =============================
+        await update.message.reply_text("❌ No válido")
 
     except Exception as e:
         print("ERROR:", e)
         await update.message.reply_text("⚠️ Error")
 
-# -------- run --------
+# -------- RUN --------
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.ALL, texto))
+app.add_handler(MessageHandler(filters.ALL, handler))
 
-print("🔥 BOT FINAL FUNCIONANDO PERFECTO")
+print("🔥 BOT PERFECTO")
 app.run_polling()
