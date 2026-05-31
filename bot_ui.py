@@ -48,34 +48,35 @@ def menu():
     return ReplyKeyboardMarkup([
         ["📊 Panel", "📢 Canales"],
         ["📩 Mensaje", "⏰ Horarios"],
-        ["📋 Activos"]
+        ["📋 Activos", "🚀 Activar"]
     ], resize_keyboard=True)
 
 # -------- START --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🚀 BOT LISTO", reply_markup=menu())
+    await update.message.reply_text("🚀 BOT PERFECTO", reply_markup=menu())
 
 # -------- MAIN --------
 async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     data = load()
 
-    raw = update.message.text or update.message.caption or ""
+    msg = update.message
+
+    raw = msg.text or msg.caption or ""
     t = clean(raw)
 
     try:
 
         # =============================
-        # 🧠 PRIORIDAD: MODO MENSAJE
+        # 🧠 MODO GUARDAR (PRIORIDAD TOTAL)
         # =============================
         if context.user_data.get("mode") == "save":
 
             if t == "guardar":
-
                 msgs = context.user_data.get("temp", [])
 
                 if not msgs:
-                    await update.message.reply_text("❌ No hay mensajes")
+                    await msg.reply_text("❌ No hay mensajes")
                     return
 
                 data["contenido"] = msgs
@@ -83,54 +84,46 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 context.user_data.clear()
 
-                await update.message.reply_text(f"✅ Guardados {len(msgs)} mensajes")
+                await msg.reply_text(f"✅ Guardados {len(msgs)} mensajes")
                 return
 
-            tipo = "texto"
-            if update.message.photo:
-                tipo = "foto"
-            elif update.message.video:
-                tipo = "video"
-
+            # DETECTAR CUALQUIER MENSAJE (INCLUYE FORWARD)
             context.user_data.setdefault("temp", [])
+
             context.user_data["temp"].append({
-                "chat_id": update.message.chat_id,
-                "message_id": update.message.message_id
+                "chat_id": msg.chat_id,
+                "message_id": msg.message_id
             })
 
-            await update.message.reply_text(
-                f"📦 Guardado ({tipo})\nTotal: {len(context.user_data['temp'])}"
+            await msg.reply_text(
+                f"📦 Guardado\nTotal: {len(context.user_data['temp'])}"
             )
             return
 
         # =============================
-        # 📩 ACTIVAR MODO MENSAJE
+        # ACTIVAR MODO MENSAJE
         # =============================
         if "mensaje" in t:
             context.user_data["mode"] = "save"
             context.user_data["temp"] = []
 
-            await update.message.reply_text(
-                "📩 Envía contenido\nEscribe 'guardar' para terminar"
-            )
+            await msg.reply_text("📩 Envía mensajes (reenviados también)\nEscribe 'guardar'")
             return
 
         # =============================
-        # 📊 PANEL
+        # PANEL
         # =============================
         if "panel" in t:
-            await update.message.reply_text(
-                f"📊 PANEL\n\n"
-                f"Canales: {len(data['canales'])}\n"
-                f"Horarios: {len(data['programacion'])}"
+            await msg.reply_text(
+                f"📊 PANEL\n\nCanales: {len(data['canales'])}\nHorarios: {len(data['programacion'])}"
             )
             return
 
         # =============================
-        # 📢 CANALES
+        # CANALES
         # =============================
         if "canales" in t:
-            await update.message.reply_text("Envía ID canal (-100...)")
+            await msg.reply_text("Envía ID canal (-100...)")
             return
 
         if raw.startswith("-100"):
@@ -138,44 +131,49 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if cid not in data["canales"]:
                 data["canales"].append(cid)
                 save(data)
-            await update.message.reply_text("✅ Canal agregado")
+            await msg.reply_text("✅ Canal agregado")
             return
 
         # =============================
-        # ⏰ HORARIOS
+        # HORARIOS
         # =============================
         if "horarios" in t:
 
             if not data["programacion"]:
-                await update.message.reply_text(
-                    "Ej:\nlunes 5pm\nlunes,viernes 6pm"
-                )
+                await msg.reply_text("Ej: lunes 5pm\nlunes,viernes 6pm")
             else:
-                txt = ""
+                txt = "⏰ HORARIOS:\n\n"
                 for i, p in enumerate(data["programacion"], 1):
                     txt += f"{i}. {p['dias']} - {p['horas']}\n"
-                await update.message.reply_text(txt)
+                await msg.reply_text(txt)
 
             return
 
         # =============================
-        # 📋 ACTIVOS
+        # ACTIVOS
         # =============================
         if "activos" in t:
             activos = [p for p in data["programacion"] if p.get("activo", True)]
 
             if not activos:
-                await update.message.reply_text("⚫ No hay activos")
+                await msg.reply_text("⚫ No hay activos")
             else:
                 txt = ""
                 for p in activos:
                     txt += f"{p['dias']} - {p['horas']}\n"
-                await update.message.reply_text(txt)
+                await msg.reply_text(txt)
 
             return
 
         # =============================
-        # ➕ AGREGAR HORARIO
+        # ACTIVAR AUTO
+        # =============================
+        if "activar" in t:
+            await msg.reply_text("🚀 AUTO ACTIVADO")
+            return
+
+        # =============================
+        # AGREGAR HORARIO
         # =============================
         if re.match(r"^[a-z, ]+\s+\d", t):
 
@@ -192,7 +190,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             horas = [h for h in horas if h]
 
             if not dias or not horas:
-                await update.message.reply_text("❌ Error formato")
+                await msg.reply_text("❌ Error formato")
                 return
 
             data["programacion"].append({
@@ -203,17 +201,17 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             save(data)
 
-            await update.message.reply_text("✅ Programado")
+            await msg.reply_text("✅ Programado")
             return
 
         # =============================
         # DEFAULT
         # =============================
-        await update.message.reply_text("❌ No válido")
+        await msg.reply_text("❌ No válido")
 
     except Exception as e:
         print("ERROR:", e)
-        await update.message.reply_text("⚠️ Error")
+        await msg.reply_text("⚠️ Error")
 
 # -------- RUN --------
 app = ApplicationBuilder().token(TOKEN).build()
@@ -221,5 +219,5 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.ALL, handler))
 
-print("🔥 BOT PERFECTO")
+print("🔥 BOT PERFECTO FUNCIONANDO")
 app.run_polling()
