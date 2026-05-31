@@ -9,11 +9,18 @@ from datetime import datetime
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
+# =========================
+# TOKEN SEGURO
+# =========================
 TOKEN = os.getenv("8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY")
+
+if not TOKEN or ":" not in TOKEN:
+    raise Exception("❌ TOKEN INVALIDO O NO CARGADO DESDE RAILWAY")
+
 CONFIG = "config_data.json"
 
 # =========================
-# ARCHIVO JSON
+# JSON
 # =========================
 def load():
     try:
@@ -29,7 +36,7 @@ def save(data):
         json.dump(data, f, indent=2)
 
 # =========================
-# NORMALIZAR TEXTO
+# TEXTO
 # =========================
 def clean(t):
     t = t.lower()
@@ -81,6 +88,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     t = clean(raw)
 
     try:
+
         # ===== GUARDAR =====
         if context.user_data.get("modo") == "guardar":
 
@@ -247,6 +255,9 @@ async def auto(app):
 # RUN
 # =========================
 def main():
+
+    print("TOKEN:", TOKEN)  # 🔥 DEBUG
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
