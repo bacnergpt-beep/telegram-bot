@@ -1,43 +1,40 @@
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-
-import json, unicodedata, re, difflib, asyncio, os
+import os
+import json
+import asyncio
+import re
+import unicodedata
+import difflib
 from datetime import datetime
 
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+
 TOKEN = os.getenv("8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY")
-CONFIG_PATH = "config_data.json"
+CONFIG = "config_data.json"
 
 # =========================
-# DATA
+# ARCHIVO JSON
 # =========================
 def load():
     try:
-        with open(CONFIG_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-            if not isinstance(data, dict):
-                raise Exception()
-            data.setdefault("programacion", [])
-            data.setdefault("canales", [])
-            data.setdefault("contenido", [])
-            return data
+        with open(CONFIG, "r", encoding="utf-8") as f:
+            return json.load(f)
     except:
         data = {"programacion": [], "canales": [], "contenido": []}
         save(data)
         return data
 
-
 def save(data):
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+    with open(CONFIG, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-
 # =========================
-# HELPERS
+# NORMALIZAR TEXTO
 # =========================
-def clean(text):
-    text = text.lower()
-    text = unicodedata.normalize('NFD', text)
-    return ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+def clean(t):
+    t = t.lower()
+    t = unicodedata.normalize('NFD', t)
+    return ''.join(c for c in t if unicodedata.category(c) != 'Mn')
 
 dias_validos = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"]
 
@@ -57,7 +54,6 @@ def parse_hour(h):
     except:
         return None
 
-
 # =========================
 # MENU
 # =========================
@@ -68,13 +64,11 @@ def menu():
         ["📋 Activos", "🚀 Activar"]
     ], resize_keyboard=True)
 
-
 # =========================
 # START
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🚀 BOT ACTIVO", reply_markup=menu())
-
 
 # =========================
 # HANDLER
@@ -87,18 +81,17 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     t = clean(raw)
 
     try:
-
         # ===== GUARDAR =====
-        if context.user_data.get("mode") == "save":
+        if context.user_data.get("modo") == "guardar":
 
             if t == "guardar":
-                msgs = context.user_data.get("temp", [])
+                temp = context.user_data.get("temp", [])
 
-                if not msgs:
+                if not temp:
                     await msg.reply_text("❌ Nada guardado")
                     return
 
-                data["contenido"] = msgs
+                data["contenido"] = temp
                 save(data)
                 context.user_data.clear()
 
@@ -114,23 +107,21 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text("📦 Guardado")
             return
 
-
         if "mensaje" in t:
-            context.user_data["mode"] = "save"
+            context.user_data["modo"] = "guardar"
             context.user_data["temp"] = []
             await msg.reply_text("📩 Envía contenido y luego escribe guardar")
             return
 
-
+        # ===== PANEL =====
         if "panel" in t:
-            await msg.reply_text(f"📊 Canales: {len(data['canales'])}\nHorarios: {len(data['programacion'])}")
+            await msg.reply_text(f"📊 Canales: {len(data['canales'])}\n⏰ Horarios: {len(data['programacion'])}")
             return
 
-
+        # ===== CANALES =====
         if "canales" in t:
             await msg.reply_text("Envía ID canal (-100...)")
             return
-
 
         if raw.startswith("-100"):
             cid = int(raw)
@@ -140,21 +131,20 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text("✅ Canal agregado")
             return
 
-
+        # ===== HORARIOS =====
         if "horarios" in t:
-            prog = data.get("programacion", [])
-            if not prog:
-                await msg.reply_text("⚠️ No hay horarios\nEj: lunes 5pm")
+            if not data["programacion"]:
+                await msg.reply_text("⚠️ Ejemplo:\nlunes 5pm\nlunes,viernes 6pm")
                 return
 
             txt = "⏰ HORARIOS:\n\n"
-            for i, p in enumerate(prog, 1):
+            for i, p in enumerate(data["programacion"], 1):
                 txt += f"{i}. {p['dias']} ⏰ {p['horas']}\n"
 
             await msg.reply_text(txt)
             return
 
-
+        # ===== ACTIVOS =====
         if "activos" in t:
             activos = [p for p in data["programacion"] if p.get("activo", True)]
 
@@ -167,17 +157,14 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await msg.reply_text(txt)
             return
 
-
         if "activar" in t:
             await msg.reply_text("🚀 AUTO ACTIVADO")
             return
 
-
-        # ===== HORARIO =====
+        # ===== CREAR HORARIO =====
         if re.match(r"^[a-z, ]+\s+\d", t):
 
-            match = re.match(r"(.+?)\s+(.+)$", t)
-            dias_txt, horas_txt = match.groups()
+            dias_txt, horas_txt = re.match(r"(.+?)\s+(.+)", t).groups()
 
             dias = [fix_day(d) for d in dias_txt.split(",")]
             horas = [parse_hour(h) for h in horas_txt.split(",")]
@@ -196,10 +183,8 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             })
 
             save(data)
-
             await msg.reply_text("✅ Programado")
             return
-
 
         await msg.reply_text("❌ No válido")
 
@@ -207,80 +192,70 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("ERROR:", e)
         await msg.reply_text("⚠️ Error")
 
-
 # =========================
-# AUTO ENVIO
+# AUTO ENVÍO
 # =========================
-ultimo_envio = {}
+ultimo = {}
 
-async def auto_envio(app):
-
+async def auto(app):
     print("🔥 AUTO RUNNING")
 
     while True:
         try:
-            now = datetime.now()
             data = load()
+            now = datetime.now()
 
             if not data["contenido"]:
                 await asyncio.sleep(10)
                 continue
 
-            dias_map = {
+            mapa = {
                 "monday":"lunes","tuesday":"martes","wednesday":"miercoles",
                 "thursday":"jueves","friday":"viernes","saturday":"sabado","sunday":"domingo"
             }
 
-            hoy = dias_map[now.strftime("%A").lower()]
+            hoy = mapa[now.strftime("%A").lower()]
 
-            for prog in data["programacion"]:
-
-                if hoy not in prog["dias"]:
+            for p in data["programacion"]:
+                if hoy not in p["dias"]:
                     continue
 
-                for h in prog["horas"]:
-
+                for h in p["horas"]:
                     if now.strftime("%H:%M") == h:
 
                         key = f"{hoy}-{h}"
-
-                        if ultimo_envio.get(key) == now.date():
+                        if ultimo.get(key) == now.date():
                             continue
 
                         for m in data["contenido"]:
-                            for canal in data["canales"]:
+                            for c in data["canales"]:
                                 await app.bot.copy_message(
-                                    chat_id=canal,
+                                    chat_id=c,
                                     from_chat_id=m["chat_id"],
                                     message_id=m["message_id"]
                                 )
 
                         print("✅ ENVIADO")
-                        ultimo_envio[key] = now.date()
+                        ultimo[key] = now.date()
 
         except Exception as e:
             print("AUTO ERROR:", e)
 
         await asyncio.sleep(20)
 
-
 # =========================
-# RUN SIN CRASH (CLAVE)
+# RUN
 # =========================
 def main():
-
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.ALL, handler))
 
-    # 🔥 TASK BACKGROUND
-    app.job_queue.run_repeating(lambda *_: asyncio.create_task(auto_envio(app)), interval=5, first=5)
+    app.job_queue.run_once(lambda ctx: asyncio.create_task(auto(app)), 5)
 
     print("🔥 BOT CORRIENDO")
-
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
