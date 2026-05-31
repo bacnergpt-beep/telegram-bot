@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 import json, unicodedata, re, difflib, asyncio, os
 from datetime import datetime
 
-TOKEN = os.getenv("8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY")  # 🔥 IMPORTANTE para Railway
+TOKEN = os.getenv("8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY")
 CONFIG_PATH = "config_data.json"
 
 # =========================
@@ -25,7 +25,6 @@ def load():
             return data
 
     except:
-        # 🔥 CREA EL ARCHIVO SI NO EXISTE
         data = {
             "programacion": [],
             "canales": [],
@@ -131,7 +130,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if "mensaje" in t:
             context.user_data["mode"] = "save"
             context.user_data["temp"] = []
-            await msg.reply_text("📩 Envía contenido (foto/video/texto) y luego escribe 'guardar'")
+            await msg.reply_text("📩 Envía contenido y luego escribe 'guardar'")
             return
 
 
@@ -290,18 +289,22 @@ async def auto_envio(app):
 
 
 # =========================
-# RUN
+# RUN (FIX FINAL)
 # =========================
-app = ApplicationBuilder().token(TOKEN).build()
+async def main():
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.ALL, handler))
+    app = ApplicationBuilder().token(TOKEN).build()
 
-async def post_init(app):
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.ALL, handler))
+
+    # 🔥 AUTO ENVÍO CORRECTO
     asyncio.create_task(auto_envio(app))
 
-app.post_init = post_init
+    print("🔥 BOT LISTO")
 
-print("🔥 BOT LISTO")
+    await app.run_polling()
 
-app.run_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
