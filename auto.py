@@ -9,8 +9,11 @@ CONFIG_PATH = "config_data.json"
 bot = Bot(token=TOKEN)
 tz = pytz.timezone("America/Lima")
 
+# evitar duplicados
+ultimo_envio = {}
+
 async def main():
-    print("🔥 AUTO OK")
+    print("🔥 AUTO FUNCIONANDO BIEN")
 
     while True:
         try:
@@ -21,7 +24,7 @@ async def main():
 
             contenidos = data.get("contenido", [])
             if not contenidos:
-                await asyncio.sleep(2)
+                await asyncio.sleep(5)
                 continue
 
             dias_map = {
@@ -41,6 +44,7 @@ async def main():
 
                 for hora in prog["horas"]:
 
+                    # hora objetivo
                     dt = datetime.strptime(hora, "%H:%M").replace(
                         year=now.year,
                         month=now.month,
@@ -48,7 +52,16 @@ async def main():
                         tzinfo=tz
                     )
 
-                    if abs((now - dt).total_seconds()) <= 60:
+                    diferencia = (now - dt).total_seconds()
+
+                    # 🔥 ventana de 5 minutos
+                    if 0 <= diferencia <= 300:
+
+                        clave = f"{dia_actual}-{hora}"
+
+                        # evitar repetir
+                        if ultimo_envio.get(clave) == now.date():
+                            continue
 
                         for msg in contenidos:
                             for canal in data.get("canales", []):
@@ -58,11 +71,13 @@ async def main():
                                     message_id=msg["message_id"]
                                 )
 
-                        print("✅ enviado")
+                        print(f"✅ enviado {hora}")
+
+                        ultimo_envio[clave] = now.date()
 
         except Exception as e:
             print("ERROR:", e)
 
-        await asyncio.sleep(2)
+        await asyncio.sleep(10)
 
 asyncio.run(main())
