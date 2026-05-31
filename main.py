@@ -58,7 +58,7 @@ def menu():
     ], resize_keyboard=True)
 
 # =========================
-# BOT
+# START
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🚀 BOT PRO ACTIVO", reply_markup=menu())
@@ -101,24 +101,19 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "message_id": msg.message_id
             })
 
-            await msg.reply_text(
-                f"📦 Guardado\nTotal: {len(context.user_data['temp'])}"
-            )
+            await msg.reply_text(f"📦 Guardado\nTotal: {len(context.user_data['temp'])}")
             return
 
         # ===== ACTIVAR MODO MENSAJE =====
         if "mensaje" in t:
             context.user_data["mode"] = "save"
             context.user_data["temp"] = []
-
             await msg.reply_text("📩 Envía contenido (foto, texto o forward)\nEscribe 'guardar'")
             return
 
         # ===== PANEL =====
         if "panel" in t:
-            await msg.reply_text(
-                f"📊 PANEL\n\nCanales: {len(data['canales'])}\nHorarios: {len(data['programacion'])}"
-            )
+            await msg.reply_text(f"📊 PANEL\n\nCanales: {len(data['canales'])}\nHorarios: {len(data['programacion'])}")
             return
 
         # ===== CANALES =====
@@ -136,7 +131,6 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # ===== HORARIOS =====
         if "horarios" in t:
-
             if not data["programacion"]:
                 await msg.reply_text("Ej:\nlunes 5pm\nlunes,viernes 6pm")
             else:
@@ -144,13 +138,11 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 for i, p in enumerate(data["programacion"], 1):
                     txt += f"{i}. {p['dias']} - {p['horas']}\n"
                 await msg.reply_text(txt)
-
             return
 
         # ===== ACTIVOS =====
         if "activos" in t:
             activos = [p for p in data["programacion"] if p.get("activo", True)]
-
             if not activos:
                 await msg.reply_text("⚫ No hay activos")
             else:
@@ -158,7 +150,6 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 for p in activos:
                     txt += f"{p['dias']} - {p['horas']}\n"
                 await msg.reply_text(txt)
-
             return
 
         # ===== ACTIVAR AUTO =====
@@ -208,7 +199,6 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ultimo_envio = {}
 
 async def auto_envio(app):
-
     print("🔥 AUTO INICIADO")
 
     while True:
@@ -254,7 +244,6 @@ async def auto_envio(app):
                                 )
 
                         print("✅ ENVIADO")
-
                         ultimo_envio[clave] = now.date()
 
         except Exception as e:
@@ -263,18 +252,19 @@ async def auto_envio(app):
         await asyncio.sleep(20)
 
 # =========================
-# RUN
+# RUN (ESTABLE RAILWAY)
 # =========================
-async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+app = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.ALL, handler))
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.ALL, handler))
 
+async def post_init(app):
     asyncio.create_task(auto_envio(app))
+    print("🔥 AUTO INICIADO")
 
-    print("🔥 BOT + AUTO CORRIENDO")
+app.post_init = post_init
 
-    await app.run_polling()
+print("🔥 BOT FUNCIONANDO")
 
-asyncio.run(main())
+app.run_polling()
