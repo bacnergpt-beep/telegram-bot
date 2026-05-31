@@ -59,7 +59,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     data = load()
-
     msg = update.message
 
     raw = msg.text or msg.caption or ""
@@ -68,7 +67,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
 
         # =============================
-        # 🧠 MODO GUARDAR (PRIORIDAD TOTAL)
+        # 🧠 MODO GUARDAR
         # =============================
         if context.user_data.get("mode") == "save":
 
@@ -87,7 +86,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await msg.reply_text(f"✅ Guardados {len(msgs)} mensajes")
                 return
 
-            # DETECTAR CUALQUIER MENSAJE (INCLUYE FORWARD)
+            # guarda cualquier mensaje (texto, foto, forward)
             context.user_data.setdefault("temp", [])
 
             context.user_data["temp"].append({
@@ -107,7 +106,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["mode"] = "save"
             context.user_data["temp"] = []
 
-            await msg.reply_text("📩 Envía mensajes (reenviados también)\nEscribe 'guardar'")
+            await msg.reply_text("📩 Envía mensajes (reenviados también)\nEscribe: guardar")
             return
 
         # =============================
@@ -115,7 +114,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # =============================
         if "panel" in t:
             await msg.reply_text(
-                f"📊 PANEL\n\nCanales: {len(data['canales'])}\nHorarios: {len(data['programacion'])}"
+                f"📊 PANEL\n\nCanales: {len(data.get('canales', []))}\nHorarios: {len(data.get('programacion', []))}"
             )
             return
 
@@ -128,8 +127,8 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if raw.startswith("-100"):
             cid = int(raw)
-            if cid not in data["canales"]:
-                data["canales"].append(cid)
+            if cid not in data.get("canales", []):
+                data.setdefault("canales", []).append(cid)
                 save(data)
             await msg.reply_text("✅ Canal agregado")
             return
@@ -139,30 +138,49 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # =============================
         if "horarios" in t:
 
-            if not data["programacion"]:
-                await msg.reply_text("Ej: lunes 5pm\nlunes,viernes 6pm")
-            else:
-                txt = "⏰ HORARIOS:\n\n"
-                for i, p in enumerate(data["programacion"], 1):
-                    txt += f"{i}. {p['dias']} - {p['horas']}\n"
-                await msg.reply_text(txt)
+            prog = data.get("programacion", [])
 
+            if not prog:
+                await msg.reply_text("⏰ No hay horarios\nEj: lunes 5pm")
+                return
+
+            txt = "⏰ HORARIOS:\n\n"
+
+            for i, p in enumerate(prog, 1):
+                try:
+                    dias = p.get("dias", [])
+                    horas = p.get("horas", [])
+
+                    txt += f"{i}. {', '.join(dias)}\n"
+                    txt += f"🕒 {', '.join(horas)}\n\n"
+                except:
+                    continue
+
+            await msg.reply_text(txt)
             return
 
         # =============================
         # ACTIVOS
         # =============================
         if "activos" in t:
-            activos = [p for p in data["programacion"] if p.get("activo", True)]
+
+            prog = data.get("programacion", [])
+            activos = [p for p in prog if p.get("activo", True)]
 
             if not activos:
                 await msg.reply_text("⚫ No hay activos")
-            else:
-                txt = ""
-                for p in activos:
-                    txt += f"{p['dias']} - {p['horas']}\n"
-                await msg.reply_text(txt)
+                return
 
+            txt = "📋 ACTIVOS:\n\n"
+
+            for p in activos:
+                try:
+                    txt += f"{', '.join(p.get('dias', []))}\n"
+                    txt += f"🕒 {', '.join(p.get('horas', []))}\n\n"
+                except:
+                    continue
+
+            await msg.reply_text(txt)
             return
 
         # =============================
@@ -193,7 +211,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await msg.reply_text("❌ Error formato")
                 return
 
-            data["programacion"].append({
+            data.setdefault("programacion", []).append({
                 "dias": dias,
                 "horas": horas,
                 "activo": True
