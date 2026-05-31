@@ -41,7 +41,7 @@ def parse_hora(h):
     except:
         return None
 
-# -------- días inteligentes --------
+# -------- días --------
 dias_validos = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"]
 
 def corregir_dia(d):
@@ -67,18 +67,53 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     cargar()
 
-    raw = (
-        update.message.text or
-        update.message.caption or
-        ""
-    )
-
+    raw = update.message.text or update.message.caption or ""
     t = limpiar(raw)
 
     try:
 
+        # 🔥 PRIORIDAD: GUARDAR MENSAJES
+        if context.user_data.get("modo") == "multi_mensaje":
+
+            if t == "guardar":
+
+                mensajes = context.user_data.get("temp_mensajes", [])
+
+                if not mensajes:
+                    await update.message.reply_text("❌ No hay mensajes")
+                    return
+
+                data["contenido"] = mensajes
+                guardar()
+
+                context.user_data.clear()
+
+                await update.message.reply_text(f"✅ Guardados {len(mensajes)} mensajes")
+                return
+
+            tipo = "texto"
+            if update.message.photo:
+                tipo = "foto"
+            elif update.message.video:
+                tipo = "video"
+            elif update.message.document:
+                tipo = "archivo"
+
+            context.user_data.setdefault("temp_mensajes", [])
+
+            context.user_data["temp_mensajes"].append({
+                "chat_id": update.message.chat_id,
+                "message_id": update.message.message_id,
+                "tipo": tipo
+            })
+
+            await update.message.reply_text(
+                f"📦 Guardado ({tipo})\nTotal: {len(context.user_data['temp_mensajes'])}"
+            )
+            return
+
         # PANEL
-        if "panel" in t:
+        elif "panel" in t:
             await update.message.reply_text(
                 f"📊 PANEL\n\n"
                 f"📢 Canales: {len(data['canales'])}\n"
@@ -96,54 +131,14 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 guardar()
             await update.message.reply_text("✅ Canal agregado")
 
-        # -------- MENSAJES PRO --------
+        # ACTIVAR MODO MENSAJE
         elif "mensaje" in t:
             context.user_data["modo"] = "multi_mensaje"
             context.user_data["temp_mensajes"] = []
 
             await update.message.reply_text(
-                "📩 Envía los mensajes (foto, texto, video)\n"
+                "📩 Envía los mensajes (foto, texto, etc)\n"
                 "Cuando termines escribe: guardar"
-            )
-
-        elif context.user_data.get("modo") == "multi_mensaje":
-
-            if t == "guardar":
-
-                mensajes = context.user_data.get("temp_mensajes", [])
-
-                if not mensajes:
-                    await update.message.reply_text("❌ No hay mensajes")
-                    return
-
-                data["contenido"] = mensajes
-                guardar()
-
-                context.user_data.clear()
-
-                await update.message.reply_text(
-                    f"✅ Guardados {len(mensajes)} mensajes"
-                )
-                return
-
-            tipo = "texto"
-
-            if update.message.photo:
-                tipo = "foto"
-            elif update.message.video:
-                tipo = "video"
-            elif update.message.document:
-                tipo = "archivo"
-
-            context.user_data["temp_mensajes"].append({
-                "chat_id": update.message.chat_id,
-                "message_id": update.message.message_id,
-                "tipo": tipo
-            })
-
-            await update.message.reply_text(
-                f"📦 Guardado ({tipo})\n"
-                f"Total: {len(context.user_data['temp_mensajes'])}"
             )
 
         # HORARIOS
@@ -201,23 +196,10 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             guardar()
             await update.message.reply_text("🟢 Activado")
 
-        # PANEL COMPLETO
-        elif t.startswith(".panel"):
-            await update.message.reply_text(
-                "📘 PANEL\n\n"
-                "Agregar: lunes 5pm\n"
-                "Ver: horarios\n"
-                "Activos: activos\n"
-                "Eliminar: del:1\n"
-                "Pausar: off:1\n"
-                "Activar: on:1"
-            )
-
-        # -------- FIX HORARIOS --------
+        # HORARIO NUEVO (FIX)
         elif re.match(r"^[a-z, ]+\s+\d", t):
 
             match = re.match(r"(.+?)\s+(.+)$", t)
-
             if not match:
                 await update.message.reply_text("❌ Formato inválido")
                 return
@@ -228,17 +210,8 @@ async def texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             dias = dias_txt.split(",")
             horas_lista = horas_txt.split(",")
 
-            dias_final = []
-            for d in dias:
-                c = corregir_dia(d)
-                if c:
-                    dias_final.append(c)
-
-            horas_final = []
-            for h in horas_lista:
-                ph = parse_hora(h)
-                if ph:
-                    horas_final.append(ph)
+            dias_final = [corregir_dia(d) for d in dias if corregir_dia(d)]
+            horas_final = [parse_hora(h) for h in horas_lista if parse_hora(h)]
 
             if not dias_final or not horas_final:
                 await update.message.reply_text("❌ Error en formato")
@@ -269,5 +242,5 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.ALL, texto))
 
-print("🔥 BOT PRO 100% FUNCIONAL")
+print("🔥 BOT FINAL FUNCIONANDO PERFECTO")
 app.run_polling()
