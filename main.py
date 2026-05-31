@@ -1,14 +1,14 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-import json, unicodedata, re, difflib, asyncio
+import json, unicodedata, re, difflib, asyncio, os
 from datetime import datetime
 
-TOKEN = "8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY"
+TOKEN = os.getenv("8711981791:AAHJ3hSl0lLWAffHRJu5AOZzMBiTAD4f2BY")  # 🔥 IMPORTANTE para Railway
 CONFIG_PATH = "config_data.json"
 
 # =========================
-# DATA
+# DATA (ANTI-CRASH)
 # =========================
 def load():
     try:
@@ -23,16 +23,22 @@ def load():
             data.setdefault("contenido", [])
 
             return data
+
     except:
-        return {
+        # 🔥 CREA EL ARCHIVO SI NO EXISTE
+        data = {
             "programacion": [],
             "canales": [],
             "contenido": []
         }
+        save(data)
+        return data
+
 
 def save(data):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+
 
 # =========================
 # HELPERS
@@ -60,6 +66,7 @@ def parse_hour(h):
     except:
         return None
 
+
 # =========================
 # MENU
 # =========================
@@ -70,11 +77,13 @@ def menu():
         ["📋 Activos", "🚀 Activar"]
     ], resize_keyboard=True)
 
+
 # =========================
-# BOT
+# START
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🚀 BOT FUNCIONANDO", reply_markup=menu())
+
 
 # =========================
 # HANDLER
@@ -117,12 +126,14 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text(f"📦 Guardado ({len(context.user_data['temp'])})")
             return
 
+
         # ===== ACTIVAR GUARDADO =====
         if "mensaje" in t:
             context.user_data["mode"] = "save"
             context.user_data["temp"] = []
-            await msg.reply_text("📩 Envía contenido y luego escribe 'guardar'")
+            await msg.reply_text("📩 Envía contenido (foto/video/texto) y luego escribe 'guardar'")
             return
+
 
         # ===== PANEL =====
         if "panel" in t:
@@ -130,6 +141,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📊 PANEL\n\nCanales: {len(data['canales'])}\nHorarios: {len(data['programacion'])}"
             )
             return
+
 
         # ===== CANALES =====
         if "canales" in t:
@@ -143,6 +155,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 save(data)
             await msg.reply_text("✅ Canal agregado")
             return
+
 
         # ===== HORARIOS =====
         if "horarios" in t:
@@ -163,6 +176,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text(txt)
             return
 
+
         # ===== ACTIVOS =====
         if "activos" in t:
             activos = [p for p in data.get("programacion", []) if p.get("activo", True)]
@@ -176,10 +190,12 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await msg.reply_text(txt)
             return
 
+
         # ===== ACTIVAR =====
         if "activar" in t:
             await msg.reply_text("🚀 AUTO ACTIVADO")
             return
+
 
         # ===== AGREGAR HORARIO =====
         if re.match(r"^[a-z, ]+\s+\d", t):
@@ -208,11 +224,13 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text("✅ Programado")
             return
 
+
         await msg.reply_text("❌ No válido")
 
     except Exception as e:
         print("ERROR:", e)
         await msg.reply_text("⚠️ Error")
+
 
 # =========================
 # AUTO ENVÍO
@@ -269,6 +287,7 @@ async def auto_envio(app):
             print("ERROR AUTO:", e)
 
         await asyncio.sleep(20)
+
 
 # =========================
 # RUN
