@@ -10,7 +10,7 @@ bot = Bot(token=TOKEN)
 tz = pytz.timezone("America/Lima")
 
 async def main():
-    print("🔥 AUTO FUNCIONANDO")
+    print("🔥 AUTO OK")
 
     while True:
         try:
@@ -50,12 +50,12 @@ async def main():
 
                     if abs((now - dt).total_seconds()) <= 60:
 
-                        for contenido in contenidos:
+                        for msg in contenidos:
                             for canal in data.get("canales", []):
                                 await bot.copy_message(
                                     chat_id=canal,
-                                    from_chat_id=contenido["chat_id"],
-                                    message_id=contenido["message_id"]
+                                    from_chat_id=msg["chat_id"],
+                                    message_id=msg["message_id"]
                                 )
 
                         print("✅ enviado")
